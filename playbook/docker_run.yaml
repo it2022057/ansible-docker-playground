@@ -12,10 +12,11 @@
 
       - name: Clone git repo
         git:
-          repo: 'https://github.com/it2022057/devops-2025.git'
+          repo: 'git@github.com:it2022057/devops-2025.git'
           dest: "{{ repo_dir }}"
           version: "{{ branch }}"
           force: yes
+          accept_hostkey: yes
           recursive: yes
           update: yes
 
@@ -27,17 +28,19 @@
           line: "{{item.key}}={{item.value}}"
         with_items:
           - "{{app.env | dict2items}}"
+        tags:
+          - edit
 
-      # - name: Install pip3 
-      #   apt:
-      #     name: python3-pip
-      #     state: latest
-      #     update_cache: yes
-      #   become: yes
+      - name: Install pip3 
+        apt:
+          name: python3-pip
+          state: latest
+          update_cache: yes
+        become: yes
 
-      # - name: Install Docker SDK for Python
-      #   command: pip3 install docker --break-system-packages
-      #   become: yes
+      - name: Install Docker SDK for Python
+        command: pip3 install docker --break-system-packages
+        become: yes
 
       - name: Stop any existing containers
         community.docker.docker_compose_v2:
