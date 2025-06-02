@@ -12,49 +12,51 @@
 
       - name: Clone git repo
         git:
-          repo: 'https://gitlab.hua.gr/it2022057/ds-project-2024.git'
-          dest: "{{ appdir }}"
+          repo: 'https://github.com/it2022057/devops-2025.git'
+          dest: "{{ repo_dir }}"
           version: "{{ branch }}"
           force: yes
+          recursive: yes
+          update: yes
 
       - name: "Populate application.properties"
         lineinfile:
-          dest: "{{ appdir }}/src/main/resources/application.properties"
+          dest: "{{ app_dir }}/src/main/resources/application.properties"
           state: present
           regexp: "^{{item.key}}="
           line: "{{item.key}}={{item.value}}"
         with_items:
           - "{{app.env | dict2items}}"
 
-      - name: Install pip3 
-        apt:
-          name: python3-pip
-          state: latest
-          update_cache: yes
-        become: yes
+      # - name: Install pip3 
+      #   apt:
+      #     name: python3-pip
+      #     state: latest
+      #     update_cache: yes
+      #   become: yes
 
-      - name: Install Docker SDK for Python
-        command: pip3 install docker --break-system-packages
-        become: yes
+      # - name: Install Docker SDK for Python
+      #   command: pip3 install docker --break-system-packages
+      #   become: yes
 
       - name: Stop any existing containers
         community.docker.docker_compose_v2:
-          project_src: "{{ appdir }}"
+          project_src: "{{ repo_dir }}"
           state: absent
       
       - name: Start the containers written in the docker files
         community.docker.docker_compose_v2:
-          project_src: "{{ appdir }}"
+          project_src: "{{ repo_dir }}"
           build: always
           state: present
         register: output
         notify: Restart Docker Compose
       
-      # - debug:
-      #     var: output
+      - debug:
+          var: output
     
     handlers:
     - name: Restart Docker Compose
       community.docker.docker_compose_v2:
-        project_src: "{{ appdir }}"
+        project_src: "{{ repo_dir }}"
         state: restarted
