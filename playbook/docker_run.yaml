@@ -1,49 +1,48 @@
 ---
-  - name: Install spring boot application in docker environment
+  - name: Install spring boot application and all the other components in docker environment
     hosts: azure-hosts
 
     tasks:
 
-      - name: Ensure Docker Compose is available
-        command: docker compose version
-        register: compose_check
-        failed_when: compose_check.rc != 0
-        changed_when: false
+      - name: Ensure Docker is available
+        shell: docker --version && docker compose version
+        register: docker_version_result # Store the result (stdout, stderr, return code)
+        ignore_errors: true # Don't fail the playbook if the command fails
+      
+      # Set a fact to check if Docker is installed
+      - name: Set Docker installed fact
+        set_fact:
+          docker_installed: "{{ docker_version_result.rc == 0 }}"
+      
+      # If Docker is not installed, then install it by running the install_docker playbook
+      - name: Include install_docker playbook if Docker is not installed
+        include_tasks: install_docker.yaml
+        when: not docker_installed
 
       - name: Clone git repo
         git:
-          repo: 'git@github.com:it2022057/devops-2025.git'
-          dest: "{{ repo_dir }}"
+          repo: 'https://github.com/it2022057/devops-2025.git'  # decided to use https instead of ssh, because it is a public repository and i wanted everyone to be able to run the playbook without needing to set up SSH keys
+          dest: "{{ repo_dir }}"                                # although i could use ssh, since i added ForwardAgent=yes in my config file, but i wanted to keep it simple
           version: "{{ branch }}"
           force: yes
           accept_hostkey: yes
           recursive: yes
           update: yes
-      
-      - name: Remove file application.properties
-        file:
-          path: "{{ app_dir }}/src/main/resources/application.properties"
-          state: absent
+
+      # Changes application.properties to use environment variables defined and passed in the docker-compose file
+      - name: "Populate application.properties"
+        lineinfile:
+          dest: "{{ app_dir }}/src/main/resources/application.properties"
+          state: present
+          regexp: "^{{item.key}}="
+          line: "{{item.key}}={{item.value}}"
+        with_items:
+          - "{{app.env | dict2items}}"
         tags:
           - edit
 
-      - name: Copy application.yml instead of application.properties
-        copy:
-          src: ../files/application.yml
-          dest: "{{ app_dir }}/src/main/resources/application.yml"
-        tags:
-          - edit
-      # - name: "Populate application.properties"
-      #   lineinfile:
-      #     dest: "{{ app_dir }}/src/main/resources/application.properties"
-      #     state: present
-      #     regexp: "^{{item.key}}="
-      #     line: "{{item.key}}={{item.value}}"
-      #   with_items:
-      #     - "{{app.env | dict2items}}"
-      #   tags:
-      #     - edit
-
+      # Decided to install pip3 and docker SDK for Python because
+      # the docker-compose module requires it to manage Docker Compose files
       - name: Install pip3 
         apt:
           name: python3-pip
@@ -53,6 +52,7 @@
         tags:
           - install
 
+      # If i didn't install SDK for Python, i would get an error: "The docker-compose module requires the docker SDK for Python to be installed."
       - name: Install Docker SDK for Python
         command: pip3 install docker --break-system-packages
         become: yes
